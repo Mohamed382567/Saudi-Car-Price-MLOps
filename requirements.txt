@@ -1,0 +1,35 @@
+# --- Core Data Science (From Your Notebook) ---
+numpy==2.0.2
+pandas==2.2.2
+scikit-learn==1.6.1
+matplotlib==3.10.0
+seaborn==0.13.2
+xgboost==3.2.0
+matplotlib-inline==0.2.1
+matplotlib-venn==1.1.2
+pandas-datareader==0.10.0
+pandas-gbq==0.30.0
+pandas-stubs==2.2.2.240909
+
+# --- Scraping & Web Handling ---
+requests
+beautifulsoup4
+playwright
+asyncio
+
+# --- MLOps, Tracking & Optimization ---
+optuna
+joblib
+mlflow
+dagshub
+python-dotenv
+pytest
+plotly.express
+streamlit
+pymongo[srv]
+dnspython
+# --- API & Deployment ---
+fastapi
+gradio
+uvicorn
+pydantic

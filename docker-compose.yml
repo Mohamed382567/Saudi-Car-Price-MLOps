@@ -1,0 +1,36 @@
+services:
+  # FastAPI Service
+  api:
+    build: .
+    image: saudi-car-api:v1.3
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./models:/app/models
+      - ./database:/app/database
+    environment:
+      - MLFLOW_TRACKING_URI=https://dagshub.com/Mohamed382567/Car-Price-Prediction-MLOps.mlflow
+    restart: always
+
+  # Scraper & Pipeline Service
+  scraper:
+    build: .
+    image: saudi-car-scraper:v1.3
+    volumes:
+      - ./database:/app/database
+      - ./models:/app/models
+      - ./logs:/app/logs
+    command: python run_pipeline.py 
+
+  # Monitoring Dashboard Service
+  dashboard:
+    build: .
+    image: saudi-car-dashboard:v1.3
+    ports:
+      - "8501:8501"                   # Default Streamlit port
+    volumes:
+      - ./logs:/app/logs             # To read the jsonl and log files
+      - ./database:/app/database     # To read the training data stats
+    # This command starts the dashboard instead of the API
+    command: streamlit run monitoring/dashboard.py

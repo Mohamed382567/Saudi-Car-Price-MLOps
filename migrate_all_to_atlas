@@ -1,0 +1,99 @@
+import sqlite3
+import json
+import os
+from pymongo import MongoClient
+from datetime import datetime
+
+# --- Configuration ---
+# Your MongoDB Atlas connection string
+MONGO_URI = "mongodb+srv://mohamedelbazml_db_user:ObNIYdCtVP0N33Zp@cluster0.30uvnhe.mongodb.net/?appName=Cluster0"
+DB_PATH = "database/cars_warehouse.db"
+LOG_SINGLE = "logs/single_predictions.jsonl"
+BATCH_LOG_FILE = "logs/batch_history.log"
+BATCH_DIR = "logs/uploaded_files"
+
+def migrate():
+    try:
+        # Establish connection to MongoDB Atlas
+        client = MongoClient(MONGO_URI)
+        db = client.saudi_cars_db
+        print("🔗 Connected to MongoDB Atlas successfully!")
+
+        # --- STEP 0: Create Unique Index (The Gatekeeper) ---
+        # This prevents duplicates at the database level forever
+        db.cars.create_index("url", unique=True)
+        print("🛡️ Unique index on 'url' verified/created.")
+
+        # --- 1. Migrate SQLite Data (Cars Database) ---
+        if os.path.exists(DB_PATH):
+            print("🚗 Reading cars from SQLite...")
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM raw_cars")
+            local_rows = [dict(row) for row in cursor.fetchall()]
+            conn.close()
+
+            if local_rows:
+                # [LOGIC CHANGE] Instead of delete_many, we fetch existing URLs from Cloud
+                existing_urls = set(db.cars.distinct("url"))
+                
+                # Filter only the rows that DO NOT exist in Cloud
+                new_rows = [row for row in local_rows if row['url'] not in existing_urls]
+
+                if new_rows:
+                    db.cars.insert_many(new_rows)
+                    print(f"✅ Migrated {len(new_rows)} NEW cars. (Skipped {len(local_rows) - len(new_rows)} duplicates)")
+                else:
+                    print("ℹ️ No new cars to migrate. Cloud is already up to date.")
+            else:
+                print("⚠️ No car records found in SQLite.")
+
+        # --- 2. Migrate Individual Prediction Logs (JSONL) ---
+        if os.path.exists(LOG_SINGLE):
+            # For logs, since they don't have a unique URL, 
+            # we check if cloud already has data to avoid double-logging
+            if db.inference_logs.count_documents({}) == 0:
+                print("📜 Reading single inference logs from JSONL...")
+                logs = []
+                with open(LOG_SINGLE, 'r') as f:
+                    for line in f:
+                        try:
+                            logs.append(json.loads(line))
+                        except json.JSONDecodeError: continue
+                
+                if logs:
+                    db.inference_logs.insert_many(logs)
+                    print(f"✅ Migrated {len(logs)} inference logs.")
+            else:
+                print("⏭️ Skipping Inference Logs migration (Data already exists in Cloud).")
+
+        # --- 3. Migrate Uploaded Files Metadata ---
+        if os.path.exists(BATCH_DIR):
+            existing_filenames = set(db.uploaded_files_metadata.distinct("filename"))
+            files = [f for f in os.listdir(BATCH_DIR) if os.path.isfile(os.path.join(BATCH_DIR, f))]
+            
+            # Filter only new files with 'timestamp' inclusion as we discussed before
+            file_records = [
+                {
+                    "filename": f, 
+                    "source": "local_migration", 
+                    "status": "processed",
+                    "timestamp": datetime.now().isoformat() # Adding missing timestamp
+                } 
+                for f in files if f not in existing_filenames
+            ]
+
+            if file_records:
+                db.uploaded_files_metadata.insert_one(file_records) if len(file_records) == 1 else db.uploaded_files_metadata.insert_many(file_records)
+                print(f"✅ Recorded metadata for {len(file_records)} NEW files.")
+            else:
+                print("📁 No new file metadata to record.")
+
+        print("\n🎉 Synchronization with MongoDB Atlas Complete!")
+
+    except Exception as e:
+        print(f"❌ Migration failed: {e}")
+
+if __name__ == "__main__":
+    migrate()
