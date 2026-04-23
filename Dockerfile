@@ -1,6 +1,6 @@
 # --- Stage 1: Base Image (Common for all services) ---
-# We use python:3.9-slim to keep the image size small but functional
-FROM python:3.9-slim as base
+# We use python:3.11-slim 
+FROM python:3.11-slim as base
 
 # Set working directory inside the container
 WORKDIR /app
