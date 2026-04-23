@@ -11,8 +11,8 @@ from src.preprocessing import create_preprocessor, clean_dataframe
 from src.trainer import load_data_from_db
 
 # DagsHub Configuration
-REPO_OWNER = ${{ secrets.DAGSHUB_USERNAME }}
-REPO_NAME = ${{ secrets.REPO_NAME }}
+REPO_OWNER = os.getenv("DAGSHUB_USERNAME") 
+REPO_NAME = os.getenv("REPO_NAME")
 
 def setup_dagshub():
     """ Connects the local script to the DagsHub MLflow remote server. """
