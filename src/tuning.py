@@ -11,7 +11,7 @@ from src.preprocessing import create_preprocessor, clean_dataframe
 from src.trainer import load_data_from_db
 
 # DagsHub Configuration
-REPO_OWNER = ${{ secrets.DOCKERHUB_USERNAME }}
+REPO_OWNER = ${{ secrets.DAGSHUB_USERNAME }}
 REPO_NAME = ${{ secrets.REPO_NAME }}
 
 def setup_dagshub():
