@@ -20,6 +20,9 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Playwright Browsers
+        run: playwright install --with-deps chromium        
+
       # 1. Run Scraper & Conditional Retraining
       - name: Run Pipeline (Scrape & Train)
         env:
