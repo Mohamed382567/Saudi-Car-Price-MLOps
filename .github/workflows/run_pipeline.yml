@@ -28,6 +28,7 @@ jobs:
           # DagsHub Secrets for MLflow logging
           MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+          REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py # This script checks if count(is_trained:0) > 500
 
       # 2. Run Quality Tests
