@@ -34,14 +34,18 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py # This script checks if count(is_trained:0) > 500
 
-      # This step creates mock files so pytest doesn't crash when loading the API
+      # --- Create Smart Dummy Artifacts for Testing ---
+      # These English comments explain how we bypass the fitting errors
       - name: Create Dummy Artifacts for Testing
         run: |
           mkdir -p models
-          # Create a dummy XGBoost model and save it
+          # 1. Create a fitted XGBoost model (ready for 15-feature input)
           python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
-          # Create a dummy preprocessor and save it
-          python -c "import joblib; from sklearn.preprocessing import StandardScaler; joblib.dump(StandardScaler(), 'models/preprocessor.pkl')"
+          
+          # 2. Create a Universal Preprocessor that accepts strings/objects and returns 15 zeros
+          # This avoids 'NotFittedError' and 'ValueError' during CI testing
+          python -c "import joblib; import numpy as np; from sklearn.preprocessing import FunctionTransformer; p=FunctionTransformer(lambda x: np.zeros((len(x), 15))); joblib.dump(p, 'models/preprocessor.pkl')"
+
 
       # 2. Run Quality Tests
       - name: Run Pytest
