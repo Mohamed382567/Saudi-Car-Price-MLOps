@@ -34,6 +34,15 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py # This script checks if count(is_trained:0) > 500
 
+      # This step creates mock files so pytest doesn't crash when loading the API
+      - name: Create Dummy Artifacts for Testing
+        run: |
+          mkdir -p models
+          # Create a dummy XGBoost model and save it
+          python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
+          # Create a dummy preprocessor and save it
+          python -c "import joblib; from sklearn.preprocessing import StandardScaler; joblib.dump(StandardScaler(), 'models/preprocessor.pkl')"
+
       # 2. Run Quality Tests
       - name: Run Pytest
         run: pytest tests/
