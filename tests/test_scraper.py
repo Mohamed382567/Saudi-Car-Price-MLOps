@@ -8,4 +8,4 @@ def test_website_accessibility():
     response = requests.get(url, headers=headers, timeout=10)
     
     assert response.status_code == 200
-    assert "filters" in response.url # التأكد أنه لم يقم بعمل Redirect لصفحة حظر
+    assert "filters" in response.url 
