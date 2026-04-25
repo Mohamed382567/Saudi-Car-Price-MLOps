@@ -33,17 +33,26 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py
 
-      # 2. Create Smart Dummy Artifacts for Testing (Fixed Pickling Error)
-      # We define a named function instead of lambda to avoid _pickle.PicklingError
+      # 2. Create Smart Dummy Artifacts for Testing (Fixed Syntax)
       - name: Create Dummy Artifacts for Testing
         run: |
           mkdir -p models
-          # Create a fitted dummy XGBoost model
+          # Create dummy XGBoost model
           python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
-          # Create a picklable FunctionTransformer using a named function
-          python -c "import joblib; import numpy as np; from sklearn.preprocessing import FunctionTransformer; \
-          def mock_transform(X): return np.zeros((len(X), 15)); \
-          p = FunctionTransformer(mock_transform); joblib.dump(p, 'models/preprocessor.pkl')"
+          
+          # Create dummy Preprocessor using a clean multi-line script
+          python <<EOF
+          import joblib
+          import numpy as np
+          from sklearn.preprocessing import FunctionTransformer
+          
+          def mock_transform(X):
+              return np.zeros((len(X), 15))
+          
+          p = FunctionTransformer(mock_transform)
+          joblib.dump(p, 'models/preprocessor.pkl')
+          EOF
+
 
       # 3. Run Quality Tests
       - name: Run Pytest
