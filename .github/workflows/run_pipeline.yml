@@ -28,30 +28,53 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           APP_ENV: cloud
-          # DagsHub Secrets for MLflow logging
           MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
           REPO_NAME: ${{ secrets.REPO_NAME }}
-        run: python run_pipeline.py # This script checks if count(is_trained:0) > 500
+        run: python run_pipeline.py
 
-      # --- Create Smart Dummy Artifacts for Testing ---
-      # These English comments explain how we bypass the fitting errors
+      # 2. Create Smart Dummy Artifacts for Testing (Fixed Pickling Error)
+      # We define a named function instead of lambda to avoid _pickle.PicklingError
       - name: Create Dummy Artifacts for Testing
         run: |
           mkdir -p models
-          # 1. Create a fitted XGBoost model (ready for 15-feature input)
+          # Create a fitted dummy XGBoost model
           python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
-          
-          # 2. Create a Universal Preprocessor that accepts strings/objects and returns 15 zeros
-          # This avoids 'NotFittedError' and 'ValueError' during CI testing
-          python -c "import joblib; import numpy as np; from sklearn.preprocessing import FunctionTransformer; p=FunctionTransformer(lambda x: np.zeros((len(x), 15))); joblib.dump(p, 'models/preprocessor.pkl')"
+          # Create a picklable FunctionTransformer using a named function
+          python -c "import joblib; import numpy as np; from sklearn.preprocessing import FunctionTransformer; \
+          def mock_transform(X): return np.zeros((len(X), 15)); \
+          p = FunctionTransformer(mock_transform); joblib.dump(p, 'models/preprocessor.pkl')"
 
-
-      # 2. Run Quality Tests
+      # 3. Run Quality Tests
       - name: Run Pytest
         run: pytest tests/
 
-      # 3. Build & Push Docker Images (if training/tests succeed)
+      # 4. Fetch Real Production Model from DagsHub (The Lifesaver Step)
+      # If no new training happened, we replace the dummy model with the real one for Docker
+      - name: Fetch Latest Production Model from DagsHub
+        env:
+          MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
+          DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
+          # Using your specific repo name: Car-Price-Prediction-MLOps
+          DAGSHUB_REPO_NAME: "Car-Price-Prediction-MLOps"
+        run: |
+          python -c "
+          import os, mlflow, joblib
+          model_path = 'models/car_price_model.pkl'
+          # If the file is small (dummy) or newly created, fetch the Production version
+          if os.path.exists(model_path) and os.path.getsize(model_path) < 10000:
+              print('📥 Pulling real model from DagsHub Registry...')
+              mlflow.set_tracking_uri(f'https://dagshub.com/{os.getenv(\"DAGSHUB_USERNAME\")}/{os.getenv(\"DAGSHUB_REPO_NAME\")}.mlflow')
+              # Fetching the model: Saudi_Car_Price_Predictor
+              model = mlflow.xgboost.load_model('models:/Saudi_Car_Price_Predictor/Production')
+              joblib.dump(model, model_path)
+              print('✅ Real production model is ready for Docker build.')
+          else:
+              print('🚀 A fresh model was trained in this run. Skipping cloud fetch.')
+          "
+
+      # 5. Build & Push Docker Images
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -68,7 +91,7 @@ jobs:
           docker build --target dashboard_stage -t ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest
 
-      # 4. Trigger Render Deployment
+      # 6. Trigger Render Deployment
       - name: Trigger Render Deploy
         run: |
           curl -f ${{ secrets.RENDER_API_DEPLOY_HOOK }}
