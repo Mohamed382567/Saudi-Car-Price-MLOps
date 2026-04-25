@@ -33,26 +33,18 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py
 
-      # 2. Create Smart Dummy Artifacts for Testing (Fixed Syntax)
+      # 2. Create Smart Dummy Artifacts for Testing (Standardized Version)
       - name: Create Dummy Artifacts for Testing
         run: |
           mkdir -p models
-          # Create dummy XGBoost model
+          # Create a fitted dummy XGBoost model (expects 15 features)
           python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
           
-          # Create dummy Preprocessor using a clean multi-line script
-          python <<EOF
-          import joblib
-          import numpy as np
-          from sklearn.preprocessing import FunctionTransformer
-          
-          def mock_transform(X):
-              return np.zeros((len(X), 15))
-          
-          p = FunctionTransformer(mock_transform)
-          joblib.dump(p, 'models/preprocessor.pkl')
-          EOF
-
+          # Create an OrdinalEncoder that accepts 15 columns of ANY data (strings or numbers)
+          # handle_unknown='use_encoded_value' makes it ignore any brand/model it didn't 'see' during fit
+          python -c "import joblib; import numpy as np; from sklearn.preprocessing import OrdinalEncoder; \
+          oe=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1); \
+          oe.fit([['test']*15]); joblib.dump(oe, 'models/preprocessor.pkl')"
 
       # 3. Run Quality Tests
       - name: Run Pytest
