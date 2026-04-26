@@ -2,8 +2,8 @@ name: End-to-End MLOps Pipeline
 
 on:
   schedule:
-    - cron: '0 0 */3 * *' # Every 3 days at midnight
-  workflow_dispatch: # Allows manual trigger
+    - cron: '0 0 */3 * *'
+  workflow_dispatch:
 
 jobs:
   pipeline:
@@ -23,7 +23,7 @@ jobs:
       - name: Install Playwright Browsers
         run: playwright install --with-deps chromium        
 
-      # 1. Run Scraper & Conditional Retraining
+      # 1. Run Pipeline (Scrape & Train)
       - name: Run Pipeline (Scrape & Train)
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
@@ -33,49 +33,37 @@ jobs:
           REPO_NAME: ${{ secrets.REPO_NAME }}
         run: python run_pipeline.py
 
-      # 2. Create Smart Dummy Artifacts for Testing (Standardized Version)
-      - name: Create Dummy Artifacts for Testing
-        run: |
-          mkdir -p models
-          # Create a fitted dummy XGBoost model (expects 15 features)
-          python -c "import joblib; import numpy as np; from xgboost import XGBRegressor; m=XGBRegressor(); m.fit(np.zeros((1,15)), np.zeros(1)); joblib.dump(m, 'models/car_price_model.pkl')"
-          
-          # Create an OrdinalEncoder that accepts 15 columns of ANY data (strings or numbers)
-          # handle_unknown='use_encoded_value' makes it ignore any brand/model it didn't 'see' during fit
-          python -c "import joblib; import numpy as np; from sklearn.preprocessing import OrdinalEncoder; \
-          oe=OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1); \
-          oe.fit([['test']*15]); joblib.dump(oe, 'models/preprocessor.pkl')"
-
-      # 3. Run Quality Tests
-      - name: Run Pytest
-        run: pytest tests/
-
-      # 4. Fetch Real Production Model from DagsHub (The Lifesaver Step)
-      # If no new training happened, we replace the dummy model with the real one for Docker
-      - name: Fetch Latest Production Model from DagsHub
+      # 2. Fetch Real Production Model (Before Pytest!)
+      # We use EOF to safely write multi-line Python code
+      - name: Fetch Real Production Model
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
           DAGSHUB_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
-          # Using your specific repo name: Car-Price-Prediction-MLOps
           DAGSHUB_REPO_NAME: "Car-Price-Prediction-MLOps"
         run: |
-          python -c "
+          python << 'EOF'
           import os, mlflow, joblib
+          
+          os.makedirs('models', exist_ok=True)
           model_path = 'models/car_price_model.pkl'
-          # If the file is small (dummy) or newly created, fetch the Production version
-          if os.path.exists(model_path) and os.path.getsize(model_path) < 10000:
-              print('📥 Pulling real model from DagsHub Registry...')
-              mlflow.set_tracking_uri(f'https://dagshub.com/{os.getenv(\"DAGSHUB_USERNAME\")}/{os.getenv(\"DAGSHUB_REPO_NAME\")}.mlflow')
-              # Fetching the model: Saudi_Car_Price_Predictor
+          
+          # If training didn't happen, fetch the latest stable model
+          if not os.path.exists(model_path):
+              print('📥 No new model trained. Pulling real model from DagsHub Registry...')
+              mlflow.set_tracking_uri(f'https://dagshub.com/{os.environ["DAGSHUB_USERNAME"]}/{os.environ["DAGSHUB_REPO_NAME"]}.mlflow')
               model = mlflow.xgboost.load_model('models:/Saudi_Car_Price_Predictor/Production')
               joblib.dump(model, model_path)
-              print('✅ Real production model is ready for Docker build.')
+              print('✅ Real model synced and ready for testing.')
           else:
-              print('🚀 A fresh model was trained in this run. Skipping cloud fetch.')
-          "
+              print('🚀 Using the newly trained model from this run.')
+          EOF
 
-      # 5. Build & Push Docker Images
+      # 3. Run Quality Tests on REAL artifacts
+      - name: Run Pytest
+        run: pytest tests/
+
+      # 4. Build & Push Docker Images
       - name: Log in to Docker Hub
         uses: docker/login-action@v2
         with:
@@ -92,7 +80,7 @@ jobs:
           docker build --target dashboard_stage -t ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest
 
-      # 6. Trigger Render Deployment
+      # 5. Trigger Render Deployment
       - name: Trigger Render Deploy
         run: |
           curl -f ${{ secrets.RENDER_API_DEPLOY_HOOK }}
