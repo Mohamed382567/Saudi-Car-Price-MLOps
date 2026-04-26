@@ -52,7 +52,7 @@ jobs:
           if not os.path.exists(model_path):
               print('📥 No new model trained. Pulling real model from DagsHub Registry...')
               mlflow.set_tracking_uri(f'https://dagshub.com/{os.environ["DAGSHUB_USERNAME"]}/{os.environ["DAGSHUB_REPO_NAME"]}.mlflow')
-              model = mlflow.xgboost.load_model('models:/Saudi_Car_Price_Predictor/Production')
+              model = mlflow.xgboost.load_model('models:/Saudi_Car_Price_Predictor@Production')
               joblib.dump(model, model_path)
               print('✅ Real model synced and ready for testing.')
           else:
