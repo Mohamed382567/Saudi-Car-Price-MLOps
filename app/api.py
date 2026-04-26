@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from src.preprocessing import master_extension_cleaner, clean_dataframe
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import gradio as gr
+from app.ui import demo
 
 # This command reads the .env file and makes variables available to os.getenv
 load_dotenv() 
@@ -189,3 +191,5 @@ async def predict_csv(file: UploadFile = File(...)):
         
     except Exception as e:
         return {"error": str(e)}
+
+app = gr.mount_gradio_app(app, demo, path="/")
