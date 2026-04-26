@@ -1,6 +1,7 @@
 # tests/test_inference.py
 import os
 import pytest
+import numpy as np
 from src.inference import CarPredictor
 
 # This decorator tells pytest to skip these tests if the model file is missing
