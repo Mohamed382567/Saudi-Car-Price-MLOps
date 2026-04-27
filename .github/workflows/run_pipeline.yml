@@ -1,4 +1,4 @@
-Name: End-to-End MLOps Pipeline
+name: End-to-End MLOps Pipeline
 
 on:
   schedule:
