@@ -2,6 +2,7 @@ import asyncio
 import random
 import requests
 import time
+import os
 from playwright.async_api import async_playwright
 from database.db_manager import insert_stage1_data, update_car_details, get_links_to_scrape
 from scraper.parser import parse_car_details, extract_price_from_text # Importing our logic
@@ -9,12 +10,16 @@ from scraper.parser import parse_car_details, extract_price_from_text # Importin
 async def run_phase1(pages=4):
     """ Phase 1: Focuses only on navigating and fetching links/text. """
     print(f"🚀 Scraping search pages...")
+    
+    base_url = os.getenv("SCRAPE_URL")
+    
     all_data = []
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         for p_num in range(1, pages + 1):
-            url = f"https://syarah.com/en/filters?make_id=4%2C60%2C38%2C58%2C69%2C37%2C51%2C67%2C78%2C35%2C33%2C55%2C5%2C48%2C15%2C53%2C74%2C20%2C19&condition_id=0%2C1&page={p_num}"
+    
+            url = f"{base_url}&page={p_num}"
             await page.goto(url, wait_until="domcontentloaded")
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight/2)")
             await asyncio.sleep(2)
