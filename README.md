@@ -35,6 +35,14 @@ This project implements a sophisticated "Forward-Compatible" strategy to handle 
 3.  **Registration:** New models are versioned and stored in the **DagsHub Model Registry**.
 4.  **Deployment:** Docker images are rebuilt and pushed to Render only when a new model is successfully verified through automated tests.
 
+
+### 4. Data Orchestration & Persistence (MongoDB Atlas)
+MongoDB Atlas serves as the centralized backbone for the entire data lifecycle and pipeline control:
+* **Inbound Ingestion:** All newly scraped vehicle data is automatically stored in MongoDB, serving as our primary "Data Warehouse."
+* **Single Source of Truth:** Both training and testing pipelines pull their datasets directly from MongoDB collections to ensure the model is trained on the most up-to-date cloud data.
+* **Pipeline Configuration & Control:** The logic that determines when **Optuna** (`tuning.py`) is triggered is governed by a `pipeline_config` collection in MongoDB. This collection stores critical metadata and state flags, allowing the system to dynamically decide whether to perform a full hyperparameter re-optimization based on data volume shifts.
+* **Operational Logging:** Every individual prediction request and batch upload metadata is logged in real-time for continuous monitoring and audit trails.
+
 ---
 
 ## 🛠 Tech Stack
