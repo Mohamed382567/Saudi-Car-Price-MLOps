@@ -143,9 +143,21 @@ def run_trainer():
         metrics = get_all_metrics(y_train_real, y_train_pred, y_test_real, y_test_pred)
         
         # --- [ARTIFACTS & REGISTRATION] ---
-        # Log Metrics and Parameters
+# Log Metrics and Parameters
         mlflow.log_params(params)
         mlflow.log_metrics(metrics)
+        
+        # Save local copies as backup
+        if not os.path.exists('models'): os.makedirs('models')
+        joblib.dump(final_model, 'models/car_price_model.pkl')
+        joblib.dump(preprocessor, 'models/preprocessor.pkl')
+
+        # 🚀 UPLOADING ARTIFACTS TO DAGSHUB/MLFLOW
+        # Versioning Note: 
+        # v1: Uses the preprocessor stored locally in the GitHub repository.
+        # v2 and beyond: The model and preprocessor are bundled together in DagsHub.
+        # This ensures that each model version matches its specific transformation logic.
+        mlflow.log_artifact("models/preprocessor.pkl", artifact_path="car_price_model_prod")
         
         # Log and Register the model in DagsHub Model Registry
         mlflow.xgboost.log_model(
