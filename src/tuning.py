@@ -76,15 +76,10 @@ def run_tuner():
     
     df = clean_dataframe(load_data_from_db())
     
-    # Define Sample Weights (Keeps your logic for Lexus and Camry 2023)
-    weights = np.ones(len(df))
-    weights[df['year'] >= 2023] = 3.0 
-    weights[df['price'] > 200000] = 5.0 
-    
     X = df.drop(columns=['id', 'url', 'price', 'full_text', 'scraped_at', 'is_trained'], errors='ignore')
     y = np.log1p(df['price'])
     
-    X_train_raw, X_val_raw, y_train, y_val, w_train, w_val = train_test_split(
+    X_train_raw, X_val_raw, y_train, y_val = train_test_split(
         X, y, weights, test_size=0.2, random_state=42
     )
     
