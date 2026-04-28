@@ -54,7 +54,12 @@ This project implements a sophisticated "Forward-Compatible" strategy to handle 
 * **Project Purpose:** This project is developed strictly for **educational and research purposes**, demonstrating a complete end-to-end MLOps architectural cycle.
 
 ---
+## 🔗 Project Links
+* **Live Prediction UI (Gradio):** https://saudi-cars-prices-predictor-web.onrender.com
+* **Monitoring Dashboard (Streamlit):** https://saudi-cars-project-dashboard.onrender.com
+* **Model Registry & MLflow Tracking**: https://dagshub.com/Mohamed382567/Car-Price-Prediction-MLOps
 
+---
 ## 📂 Directory Structure
 ```bash
 ├── .github/workflows/  # CI/CD Automation (run_pipeline.yml)
