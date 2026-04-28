@@ -24,7 +24,9 @@ jobs:
         run: playwright install --with-deps chromium        
 
       # 1. Run Pipeline (Scrape & Train)
+      # We use an ID to capture outputs and check if a new model was generated
       - name: Run Pipeline (Scrape & Train)
+        id: run_pipeline
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           APP_ENV: cloud
@@ -32,10 +34,18 @@ jobs:
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
           REPO_NAME: ${{ secrets.REPO_NAME }}
           SCRAPE_URL: ${{ secrets.SCRAPE_URL }}
-        run: python run_pipeline.py
+        run: |
+          python run_pipeline.py
+          # Check if the model file was created by this run
+          if [ -f "models/car_price_model.pkl" ]; then
+            echo "trained=true" >> $GITHUB_OUTPUT
+          else
+            echo "trained=false" >> $GITHUB_OUTPUT
+          fi
 
-      # 2. Fetch Real Production Model (Before Pytest!)
-      - name: Fetch Real Production Model
+# 2. Fetch Production Artifacts (With v1 Fallback Logic)
+      - name: Fetch Real Production Model & Preprocessor
+        if: steps.run_pipeline.outputs.trained == 'false'
         env:
           MLFLOW_TRACKING_USERNAME: ${{ secrets.DAGSHUB_USERNAME }}
           MLFLOW_TRACKING_PASSWORD: ${{ secrets.DAGSHUB_TOKEN }}
@@ -46,41 +56,60 @@ jobs:
           import os, mlflow, joblib
           
           os.makedirs('models', exist_ok=True)
-          model_path = 'models/car_price_model.pkl'
+          tracking_url = f'https://dagshub.com/{os.environ["DAGSHUB_USERNAME"]}/{os.environ["DAGSHUB_REPO_NAME"]}.mlflow'
+          mlflow.set_tracking_uri(tracking_url)
           
-          if not os.path.exists(model_path):
-              print('📥 No new model trained. Pulling real model from DagsHub Registry...')
-              mlflow.set_tracking_uri(f'https://dagshub.com/{os.environ["DAGSHUB_USERNAME"]}/{os.environ["DAGSHUB_REPO_NAME"]}.mlflow')
-              model = mlflow.xgboost.load_model('models:/Saudi_Car_Price_Predictor@Production')
-              joblib.dump(model, model_path)
-              print('✅ Real model synced and ready for testing.')
-          else:
-              print('🚀 Using the newly trained model from this run.')
+          model_uri = 'models:/Saudi_Car_Price_Predictor@Production'
+          
+          try:
+              print('📥 Pulling Production Model...')
+              model = mlflow.xgboost.load_model(model_uri)
+              joblib.dump(model, 'models/car_price_model.pkl')
+              
+              print('🔍 Attempting to pull Preprocessor from DagsHub (v2+ logic)...')
+              mlflow.artifacts.download_artifacts(
+                  artifact_uri=f"{model_uri}/car_price_model_prod/preprocessor.pkl",
+                  dst_path="models/"
+              )
+              print('✅ Preprocessor synced from DagsHub.')
+              
+          except Exception as e:
+              print(f'⚠️ Note: Could not find Preprocessor in DagsHub (This is normal for v1).')
+              if os.path.exists('models/preprocessor.pkl'):
+                  print('✅ Using the existing Preprocessor from the repository (v1 Fallback).')
+              else:
+                  print('❌ Error: No Preprocessor found in DagsHub OR Repository!')
+                  exit(1)
           EOF
 
-      # 3. Run Quality Tests on REAL artifacts
+      # 3. Run Quality Tests on the selected artifacts
       - name: Run Pytest
         run: pytest tests/
 
       # 4. Build & Push Docker Images
+      # Only triggered if a new model was trained OR if run manually
       - name: Log in to Docker Hub
+        if: steps.run_pipeline.outputs.trained == 'true' || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Build and Push API Image
+        if: steps.run_pipeline.outputs.trained == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker build --target api_stage -t ${{ secrets.DOCKER_USERNAME }}/saudi-cars-api:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/saudi-cars-api:latest
 
       - name: Build and Push Dashboard Image
+        if: steps.run_pipeline.outputs.trained == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           docker build --target dashboard_stage -t ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest .
           docker push ${{ secrets.DOCKER_USERNAME }}/saudi-cars-dashboard:latest
 
-      # 5. Trigger Render Deployment
+      # 5. Trigger Cloud Deployment (Render)
       - name: Trigger Render Deploy
+        if: steps.run_pipeline.outputs.trained == 'true' || github.event_name == 'workflow_dispatch'
         run: |
           curl -f ${{ secrets.RENDER_API_DEPLOY_HOOK }}
           curl -f ${{ secrets.RENDER_DASHBOARD_DEPLOY_HOOK }}
