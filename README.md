@@ -52,6 +52,8 @@ This project implements a sophisticated "Forward-Compatible" strategy to handle 
 * **Data Integrity:** To optimize storage and performance, the system logs only **statistical metadata** (averages, distributions, and counts) for batch uploads. In contrast, individual prediction requests are logged in full to provide a detailed audit trail for real-time monitoring and debugging.
 * **Ethical Scraping:** We strictly follow a "Polite Scraping" protocol. This includes using asynchronous requests and randomized delays to ensure we respect the source server's stability and maintain a low bandwidth footprint.
 * **Project Purpose:** This project is developed strictly for **educational and research purposes**, demonstrating a complete end-to-end MLOps architectural cycle.
+* **Note about the shown data in the dashboard:** Individual sample inputs are manually curated for testing purposes, while the batch data showcased in Streamlit is identical to the training baseline to ensure consistency during experimental validation.
+
 
 ---
 ## 🔗 Project Links
