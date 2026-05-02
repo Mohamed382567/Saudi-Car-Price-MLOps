@@ -87,7 +87,7 @@ with gr.Blocks() as demo:
             with gr.Column():
                 gr.Markdown("### ⚙️ Mechanical Specs")
                 engine = gr.Textbox(label="Engine Size", placeholder="e.g. 2.5")
-                cylinders = gr.Textbox(label="Cylinders", placeholder="e.g. 4 Cylinder")
+                cylinders = gr.Textbox(label="Cylinders", placeholder="e.g. 4")
                 gear = gr.Radio(["Automatic", "Manual", "CVT"], label="Transmission", value="Automatic")
                 fuel = gr.Radio(["Gasoline", "Diesel", "Hybrid"], label="Fuel Type", value="Gasoline")
                 drive = gr.Radio(["FWD", "RWD", "AWD", "4WD", "Double (4x4)"], label="Drivetrain", value="FWD")
