@@ -36,14 +36,23 @@ def log_single_request(data: dict, prediction: float):
     if APP_ENV == "cloud" and MONGO_URI:
         try:
             client = MongoClient(MONGO_URI)
+            # After insertion, MongoDB adds an '_id' field of type ObjectId to log_entry
             client.saudi_cars_db.inference_logs.insert_one(log_entry)
         except Exception as e:
             print(f"Cloud Logging Error: {e}")
 
+    # --- FIX: Handle ObjectId for JSON serialization ---
+    # Convert ObjectId to string if it exists to prevent json.dumps from crashing
+    if "_id" in log_entry:
+        log_entry["_id"] = str(log_entry["_id"])
+
     # 2. Local Logging (JSONL) - Backup
-    log_path = os.path.join(LOG_DIR, "single_predictions.jsonl")
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    try:
+        log_path = os.path.join(LOG_DIR, "single_predictions.jsonl")
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"Local Logging Error: {e}")
 
 app = FastAPI(title="Saudi Car Price API", version="1.3")
 
